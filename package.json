@@ -1,0 +1,10 @@
+{
+  "dependencies": {
+    "commander": "^2.15.1",
+    "mongodb": "^3.0.10",
+    "rxjs": "^6.2.0",
+    "rxjs-compat": "^6.2.0",
+    "sync-request": "^6.0.0",
+    "underscore": "^1.9.1"
+  }
+}
