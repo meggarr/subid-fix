@@ -6,15 +6,14 @@ const Mongo = require('mongodb').MongoClient;
 const assert = require('assert');
 const Rx = require('rxjs/Rx');
 const Observable = require('rxjs/Observable').Observable;
-const flatMap = require('rxjs/operators').flatMap;
 const _ = require('underscore');
+const Debug = require('debug');
 
 program.version('0.10.0', '-v, --version')
   .option('-m, --mongo-url <url>', 'MongoDB connection URL')
   .option('-d, --db-name [value]', 'Database name', 'sxa')
   .option('-f, --fix', 'Fix subscribers in billing')
   .option('-o, --org-id <id>', 'Organization ID')
-  .option('--debug', 'Print debug logs')
   .parse(process.argv);
 
 if (typeof program.mongoUrl === 'undefined') {
@@ -45,14 +44,15 @@ MongoConnectRx(program.mongoUrl).subscribe(client => {
   assert.ok(subCol);
 
   let quit = function (c) { process.exit(c); client.close(); }
-  let debug = (s) => program.debug ? console.debug('DEBUG > ' + s) : '';
+  let _debug = Debug('DEBUG');
+  let _info = Debug('INFO');
 
   let query = {
     'orgid': Number(program.orgId),
     'subscriberId': {'$exists': false}
   }
 
-  debug('Query sxa-subsciber-billing: ' + JSON.stringify(query, null, 2));
+  _info('Query sxa-subsciber-billing: ' + JSON.stringify(query, null, 2));
 
   let findRx = Observable.bindNodeCallback((q, cb) => subBillingCol.find(q).toArray(cb));
   findRx(query).subscribe(subscribers => {
@@ -65,8 +65,8 @@ MongoConnectRx(program.mongoUrl).subscribe(client => {
           '$or': _.map(customIdArray, cid => ({'customId': cid}))
         };
 
-        debug('Subscriber Billing, ' + s._id + ', csckey: ' + s.csckey);
-        debug('Query CSC Subscriber, q: ' + JSON.stringify(query));
+        _debug('Subscriber Billing, ' + s._id + ', csckey: ' + s.csckey);
+        _debug('Query Subscriber, q: ' + JSON.stringify(query));
 
         let findRx = Observable.bindNodeCallback((q, cb) => subCol.find(q).toArray(cb));
         return Observable.zip(Observable.of(s), findRx(query), (b, c) => ({ billing: b, csc: c }));
@@ -77,7 +77,7 @@ MongoConnectRx(program.mongoUrl).subscribe(client => {
         let q = { _id: sub.billing._id };
         let u = { '$set': { subscriberId: sub.csc._id } };
 
-        debug('Update Billing - q: ' + JSON.stringify(q) + ', u: ' + JSON.stringify(u));
+        _info('Update Billing - q: ' + JSON.stringify(q) + ', u: ' + JSON.stringify(u));
 
         let updateObservable;
         if (!program.fix) updateObservable = Observable.of({ok: 0});
@@ -89,7 +89,7 @@ MongoConnectRx(program.mongoUrl).subscribe(client => {
       })
       .concat(Observable.of({end: true}))
       .subscribe(r => {
-        debug('Result - ' + JSON.stringify(r, null, 2));
+        _info('Result - ' + JSON.stringify(r, null, 2));
 
         if (r.end) quit(0);
         console.log('Fixed (update) ' + r.sub.billing._id + ', subscriberId: ' + r.sub.csc._id + ', result -> ' + r.res.ok);
